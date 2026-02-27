@@ -71,4 +71,5 @@ resource "coder_app" "jupyter" {
   url          = "http://localhost:8888"
   icon         = "/icon/jupyter.svg"
   share        = "owner"
+
 }
