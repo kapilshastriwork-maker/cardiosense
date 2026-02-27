@@ -1,0 +1,973 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CardioSense — AI Cardiovascular Risk Pipeline</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --crimson: #8B0000;
+    --crimson-light: #C41E3A;
+    --crimson-pale: #FF6B6B;
+    --black: #0A0A0A;
+    --dark: #111111;
+    --card: #161616;
+    --border: #2A2A2A;
+    --text: #E8E8E8;
+    --muted: #888888;
+    --white: #FFFFFF;
+    --gold: #D4AF37;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--black);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    overflow-x: hidden;
+  }
+
+  /* ECG line animation */
+  .ecg-bg {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.03;
+  }
+
+  .ecg-line {
+    position: absolute;
+    width: 200%;
+    height: 2px;
+    top: 50%;
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 60'%3E%3Cpolyline points='0,30 40,30 50,30 60,5 70,55 80,30 120,30 130,30 140,10 150,50 160,30 200,30 210,30 220,8 230,52 240,30 280,30 290,30 300,12 310,48 320,30 360,30 400,30' fill='none' stroke='%238B0000' stroke-width='2'/%3E%3C/svg%3E") repeat-x center;
+    animation: ecgScroll 8s linear infinite;
+  }
+
+  @keyframes ecgScroll {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+  }
+
+  /* HERO */
+  .hero {
+    position: relative;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    padding: 80px 40px;
+    overflow: hidden;
+  }
+
+  .hero::before {
+    content: '';
+    position: absolute;
+    width: 600px; height: 600px;
+    background: radial-gradient(circle, rgba(139,0,0,0.15) 0%, transparent 70%);
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+  }
+
+  .hero-tag {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: var(--crimson-light);
+    border: 1px solid var(--crimson);
+    padding: 6px 16px;
+    margin-bottom: 40px;
+    animation: fadeUp 0.8s ease both;
+  }
+
+  .hero-title {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(60px, 10vw, 120px);
+    font-weight: 900;
+    line-height: 0.9;
+    color: var(--white);
+    margin-bottom: 20px;
+    animation: fadeUp 0.8s ease 0.1s both;
+  }
+
+  .hero-title span {
+    color: var(--crimson-light);
+    display: block;
+  }
+
+  .hero-subtitle {
+    font-size: 18px;
+    color: var(--muted);
+    max-width: 500px;
+    line-height: 1.6;
+    margin-bottom: 60px;
+    animation: fadeUp 0.8s ease 0.2s both;
+  }
+
+  .hero-stats {
+    display: flex;
+    gap: 60px;
+    animation: fadeUp 0.8s ease 0.3s both;
+  }
+
+  .hero-stat {
+    text-align: center;
+  }
+
+  .hero-stat-num {
+    font-family: 'Playfair Display', serif;
+    font-size: 48px;
+    font-weight: 700;
+    color: var(--crimson-pale);
+    display: block;
+  }
+
+  .hero-stat-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+
+  .scroll-hint {
+    position: absolute;
+    bottom: 40px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    color: var(--muted);
+    font-size: 12px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    font-family: 'DM Mono', monospace;
+    animation: bounce 2s infinite;
+  }
+
+  .scroll-hint::after {
+    content: '';
+    width: 1px;
+    height: 40px;
+    background: linear-gradient(to bottom, var(--muted), transparent);
+  }
+
+  @keyframes bounce {
+    0%, 100% { transform: translateX(-50%) translateY(0); }
+    50% { transform: translateX(-50%) translateY(8px); }
+  }
+
+  /* SECTIONS */
+  section {
+    position: relative;
+    z-index: 1;
+    padding: 120px 40px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  .section-tag {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: var(--crimson-light);
+    margin-bottom: 16px;
+    display: block;
+  }
+
+  .section-title {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(36px, 5vw, 56px);
+    font-weight: 700;
+    color: var(--white);
+    margin-bottom: 60px;
+    line-height: 1.1;
+  }
+
+  /* STORY SECTION */
+  .story-section {
+    border-left: 3px solid var(--crimson);
+    padding-left: 40px;
+    margin: 0 auto 80px;
+    max-width: 700px;
+  }
+
+  .story-text {
+    font-size: 20px;
+    line-height: 1.8;
+    color: var(--text);
+    font-style: italic;
+  }
+
+  .story-text strong {
+    color: var(--crimson-pale);
+    font-style: normal;
+  }
+
+  /* DATASETS */
+  .datasets-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 2px;
+    margin-bottom: 80px;
+  }
+
+  .dataset-card {
+    background: var(--card);
+    padding: 48px 36px;
+    border: 1px solid var(--border);
+    transition: border-color 0.3s, transform 0.3s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .dataset-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 3px;
+    background: var(--crimson);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0.3s;
+  }
+
+  .dataset-card:hover::before { transform: scaleX(1); }
+  .dataset-card:hover { border-color: var(--crimson); transform: translateY(-4px); }
+
+  .dataset-num {
+    font-family: 'Playfair Display', serif;
+    font-size: 72px;
+    font-weight: 900;
+    color: var(--border);
+    line-height: 1;
+    margin-bottom: 20px;
+  }
+
+  .dataset-name {
+    font-size: 20px;
+    font-weight: 500;
+    color: var(--white);
+    margin-bottom: 12px;
+  }
+
+  .dataset-desc {
+    font-size: 14px;
+    color: var(--muted);
+    line-height: 1.6;
+    margin-bottom: 24px;
+  }
+
+  .dataset-badge {
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    color: var(--crimson-pale);
+    border: 1px solid var(--crimson);
+    padding: 4px 12px;
+    display: inline-block;
+  }
+
+  /* RESULTS TABLE */
+  .results-container {
+    background: var(--card);
+    border: 1px solid var(--border);
+    overflow: hidden;
+    margin-bottom: 80px;
+  }
+
+  .results-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .results-table th {
+    background: var(--crimson);
+    color: var(--white);
+    padding: 20px 24px;
+    text-align: left;
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    font-weight: 500;
+  }
+
+  .results-table td {
+    padding: 24px;
+    border-bottom: 1px solid var(--border);
+    font-size: 15px;
+  }
+
+  .results-table tr:last-child td { border-bottom: none; }
+
+  .results-table tr:hover td { background: rgba(139,0,0,0.05); }
+
+  .model-name {
+    font-weight: 500;
+    color: var(--white);
+  }
+
+  .metric-value {
+    font-family: 'DM Mono', monospace;
+    color: var(--text);
+  }
+
+  .metric-best {
+    font-family: 'DM Mono', monospace;
+    color: var(--crimson-pale);
+    font-weight: 500;
+  }
+
+  /* AUC BAR */
+  .auc-bar-container {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .auc-bar {
+    height: 6px;
+    background: var(--crimson);
+    border-radius: 3px;
+    min-width: 20px;
+  }
+
+  /* SHAP SECTION */
+  .shap-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 24px;
+    margin-bottom: 80px;
+  }
+
+  .shap-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    padding: 36px;
+  }
+
+  .shap-feature {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .shap-feature:last-child { border-bottom: none; }
+
+  .shap-feature-name {
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+    color: var(--text);
+  }
+
+  .shap-bar-wrap {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+    margin-left: 20px;
+  }
+
+  .shap-bar-track {
+    flex: 1;
+    height: 8px;
+    background: var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  .shap-bar-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 1s ease;
+  }
+
+  .shap-bar-fill.protective { background: linear-gradient(to right, #1a6b4a, #2ecc71); }
+  .shap-bar-fill.risk { background: linear-gradient(to right, var(--crimson), var(--crimson-pale)); }
+
+  .shap-impact {
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    width: 60px;
+    text-align: right;
+  }
+
+  .shap-impact.protective { color: #2ecc71; }
+  .shap-impact.risk { color: var(--crimson-pale); }
+
+  /* PREDICTION DEMO */
+  .demo-section {
+    background: var(--card);
+    border: 1px solid var(--border);
+    padding: 60px;
+    margin-bottom: 80px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .demo-section::before {
+    content: 'LIVE DEMO';
+    position: absolute;
+    top: 24px; right: 24px;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 3px;
+    color: var(--crimson-light);
+    border: 1px solid var(--crimson);
+    padding: 4px 12px;
+  }
+
+  .demo-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 60px;
+    align-items: center;
+  }
+
+  .demo-inputs {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .demo-input-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .demo-input-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    color: var(--muted);
+    letter-spacing: 1px;
+  }
+
+  .demo-input-value {
+    font-family: 'DM Mono', monospace;
+    font-size: 14px;
+    color: var(--white);
+    font-weight: 500;
+  }
+
+  .demo-result {
+    text-align: center;
+  }
+
+  .demo-risk-badge {
+    display: inline-block;
+    background: rgba(139,0,0,0.2);
+    border: 2px solid var(--crimson);
+    color: var(--crimson-pale);
+    font-family: 'Playfair Display', serif;
+    font-size: 28px;
+    font-weight: 700;
+    padding: 20px 40px;
+    margin-bottom: 24px;
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(139,0,0,0.4); }
+    50% { box-shadow: 0 0 0 20px rgba(139,0,0,0); }
+  }
+
+  .demo-probability {
+    font-family: 'Playfair Display', serif;
+    font-size: 72px;
+    font-weight: 900;
+    color: var(--crimson-pale);
+    line-height: 1;
+    display: block;
+    margin-bottom: 8px;
+  }
+
+  .demo-probability-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    color: var(--muted);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  /* NEXT STEPS */
+  .next-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 24px;
+  }
+
+  .next-card {
+    border: 1px solid var(--border);
+    padding: 36px;
+    transition: border-color 0.3s;
+  }
+
+  .next-card:hover { border-color: var(--crimson); }
+
+  .next-num {
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    color: var(--crimson-light);
+    letter-spacing: 2px;
+    margin-bottom: 16px;
+    display: block;
+  }
+
+  .next-title {
+    font-size: 18px;
+    font-weight: 500;
+    color: var(--white);
+    margin-bottom: 12px;
+  }
+
+  .next-desc {
+    font-size: 14px;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+
+  /* FOOTER */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 60px 40px;
+    text-align: center;
+    position: relative;
+    z-index: 1;
+  }
+
+  .footer-quote {
+    font-family: 'Playfair Display', serif;
+    font-size: 24px;
+    font-style: italic;
+    color: var(--crimson-pale);
+    max-width: 700px;
+    margin: 0 auto 40px;
+    line-height: 1.6;
+  }
+
+  .footer-links {
+    display: flex;
+    gap: 40px;
+    justify-content: center;
+    margin-bottom: 40px;
+  }
+
+  .footer-link {
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 2px;
+    color: var(--muted);
+    text-decoration: none;
+    text-transform: uppercase;
+    transition: color 0.3s;
+  }
+
+  .footer-link:hover { color: var(--crimson-pale); }
+
+  .footer-copy {
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    color: var(--border);
+    letter-spacing: 1px;
+  }
+
+  /* DIVIDER */
+  .divider {
+    width: 60px;
+    height: 3px;
+    background: var(--crimson);
+    margin: 0 auto 60px;
+  }
+
+  /* ANIMATIONS */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(30px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .fade-up {
+    opacity: 0;
+    transform: translateY(30px);
+    transition: opacity 0.6s ease, transform 0.6s ease;
+  }
+
+  .fade-up.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  /* NAV */
+  nav {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 100;
+    padding: 20px 40px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(10,10,10,0.9);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .nav-logo {
+    font-family: 'Playfair Display', serif;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--white);
+  }
+
+  .nav-logo span { color: var(--crimson-light); }
+
+  .nav-links {
+    display: flex;
+    gap: 32px;
+    list-style: none;
+  }
+
+  .nav-links a {
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--muted);
+    text-decoration: none;
+    transition: color 0.3s;
+  }
+
+  .nav-links a:hover { color: var(--white); }
+
+  @media (max-width: 768px) {
+    .datasets-grid, .shap-grid, .next-grid { grid-template-columns: 1fr; }
+    .demo-grid { grid-template-columns: 1fr; }
+    .hero-stats { gap: 30px; }
+    .hero-stat-num { font-size: 36px; }
+    nav { padding: 16px 20px; }
+    .nav-links { display: none; }
+    section { padding: 80px 20px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="ecg-bg"><div class="ecg-line"></div></div>
+
+<nav>
+  <div class="nav-logo">Cardio<span>Sense</span></div>
+  <ul class="nav-links">
+    <li><a href="#about">About</a></li>
+    <li><a href="#datasets">Datasets</a></li>
+    <li><a href="#results">Results</a></li>
+    <li><a href="#shap">Explainability</a></li>
+    <li><a href="#demo">Demo</a></li>
+  </ul>
+</nav>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-tag">Hack4Health Hackathon 2026</div>
+  <h1 class="hero-title">Cardio<span>Sense</span></h1>
+  <p class="hero-subtitle">A multi-signal AI pipeline predicting cardiovascular disease risk across three independent datasets and model architectures.</p>
+  <div class="hero-stats">
+    <div class="hero-stat">
+      <span class="hero-stat-num">93%</span>
+      <span class="hero-stat-label">AUC Score</span>
+    </div>
+    <div class="hero-stat">
+      <span class="hero-stat-num">3</span>
+      <span class="hero-stat-label">Datasets</span>
+    </div>
+    <div class="hero-stat">
+      <span class="hero-stat-num">70k+</span>
+      <span class="hero-stat-label">Patients</span>
+    </div>
+  </div>
+  <div class="scroll-hint">Scroll</div>
+</div>
+
+<!-- ABOUT -->
+<section id="about">
+  <span class="section-tag">Origin</span>
+  <h2 class="section-title">Built with purpose.</h2>
+  <div class="story-section fade-up">
+    <p class="story-text">
+      In 2022, I lost my father to <strong>sudden cardiac arrest</strong>. It happened without warning — no symptoms we recognised, no time to respond. That experience became the driving force behind CardioSense. Could technology have helped? Could an AI system have detected the risk earlier and given us more time?
+      <br><br>
+      CardioSense is my answer. A machine learning pipeline that analyses clinical measurements, lifestyle factors, and ECG signals to predict cardiovascular risk — and explain exactly why.
+    </p>
+  </div>
+</section>
+
+<!-- DATASETS -->
+<section id="datasets">
+  <span class="section-tag">Data</span>
+  <h2 class="section-title">Three signals.<br>One pipeline.</h2>
+  <div class="datasets-grid">
+    <div class="dataset-card fade-up">
+      <div class="dataset-num">01</div>
+      <div class="dataset-name">Heart Disease</div>
+      <p class="dataset-desc">Clinical measurements from hospital patients — blood pressure, cholesterol, ECG results, and exercise stress test data. The most direct window into cardiovascular health.</p>
+      <span class="dataset-badge">918 patients</span>
+    </div>
+    <div class="dataset-card fade-up">
+      <div class="dataset-num">02</div>
+      <div class="dataset-name">Cardiac Failure</div>
+      <p class="dataset-desc">Lifestyle and biometric data at population scale — height, weight, blood pressure, smoking habits, alcohol consumption, and physical activity levels.</p>
+      <span class="dataset-badge">70,000 patients</span>
+    </div>
+    <div class="dataset-card fade-up">
+      <div class="dataset-num">03</div>
+      <div class="dataset-name">ECG Timeseries</div>
+      <p class="dataset-desc">Electrocardiogram signals captured as 123,993 time-series data points per patient. The electrical rhythm of the heart, compressed via PCA to 50 components retaining 99.68% of information.</p>
+      <span class="dataset-badge">528 patients</span>
+    </div>
+  </div>
+</section>
+
+<!-- RESULTS -->
+<section id="results">
+  <span class="section-tag">Performance</span>
+  <h2 class="section-title">Model results.</h2>
+  <div class="results-container fade-up">
+    <table class="results-table">
+      <thead>
+        <tr>
+          <th>Dataset</th>
+          <th>Best Model</th>
+          <th>Accuracy</th>
+          <th>F1 Score</th>
+          <th>AUC</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="model-name">Heart Disease</span></td>
+          <td><span class="metric-value">Logistic Regression</span></td>
+          <td><span class="metric-value">88.59%</span></td>
+          <td><span class="metric-best">0.9005</span></td>
+          <td>
+            <div class="auc-bar-container">
+              <div class="auc-bar" style="width:93px"></div>
+              <span class="metric-best">0.9307</span>
+            </div>
+          </td>
+        </tr>
+        <tr>
+          <td><span class="model-name">Cardiac Failure</span></td>
+          <td><span class="metric-value">XGBoost</span></td>
+          <td><span class="metric-value">73.19%</span></td>
+          <td><span class="metric-value">0.7212</span></td>
+          <td>
+            <div class="auc-bar-container">
+              <div class="auc-bar" style="width:80px"></div>
+              <span class="metric-value">0.7955</span>
+            </div>
+          </td>
+        </tr>
+        <tr>
+          <td><span class="model-name">ECG Timeseries</span></td>
+          <td><span class="metric-value">Random Forest</span></td>
+          <td><span class="metric-value">98.00%</span></td>
+          <td><span class="metric-value">0.6700</span></td>
+          <td>
+            <div class="auc-bar-container">
+              <div class="auc-bar" style="width:100px"></div>
+              <span class="metric-best">1.0000</span>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- SHAP -->
+<section id="shap">
+  <span class="section-tag">Explainability</span>
+  <h2 class="section-title">Why does the<br>model decide?</h2>
+  <div class="shap-grid">
+    <div class="shap-card fade-up">
+      <h3 style="font-family:'Playfair Display',serif; font-size:20px; color:var(--white); margin-bottom:8px;">Protective Factors</h3>
+      <p style="font-size:13px; color:var(--muted); margin-bottom:24px; font-family:'DM Mono',monospace;">High value → Lower risk</p>
+      <div class="shap-feature">
+        <span class="shap-feature-name">ST_Slope_Up</span>
+        <div class="shap-bar-wrap">
+          <div class="shap-bar-track"><div class="shap-bar-fill protective" style="width:95%"></div></div>
+          <span class="shap-impact protective">+0.74</span>
+        </div>
+      </div>
+      <div class="shap-feature">
+        <span class="shap-feature-name">ChestPainType_NAP</span>
+        <div class="shap-bar-wrap">
+          <div class="shap-bar-track"><div class="shap-bar-fill protective" style="width:75%"></div></div>
+          <span class="shap-impact protective">+0.58</span>
+        </div>
+      </div>
+      <div class="shap-feature">
+        <span class="shap-feature-name">RestingECG_Normal</span>
+        <div class="shap-bar-wrap">
+          <div class="shap-bar-track"><div class="shap-bar-fill protective" style="width:55%"></div></div>
+          <span class="shap-impact protective">+0.42</span>
+        </div>
+      </div>
+      <div class="shap-feature">
+        <span class="shap-feature-name">MaxHR</span>
+        <div class="shap-bar-wrap">
+          <div class="shap-bar-track"><div class="shap-bar-fill protective" style="width:40%"></div></div>
+          <span class="shap-impact protective">+0.31</span>
+        </div>
+      </div>
+    </div>
+    <div class="shap-card fade-up">
+      <h3 style="font-family:'Playfair Display',serif; font-size:20px; color:var(--white); margin-bottom:8px;">Risk Amplifiers</h3>
+      <p style="font-size:13px; color:var(--muted); margin-bottom:24px; font-family:'DM Mono',monospace;">High value → Higher risk</p>
+      <div class="shap-feature">
+        <span class="shap-feature-name">ExerciseAngina_Y</span>
+        <div class="shap-bar-wrap">
+          <div class="shap-bar-track"><div class="shap-bar-fill risk" style="width:90%"></div></div>
+          <span class="shap-impact risk">-0.68</span>
+        </div>
+      </div>
+      <div class="shap-feature">
+        <span class="shap-feature-name">ST_Slope_Flat</span>
+        <div class="shap-bar-wrap">
+          <div class="shap-bar-track"><div class="shap-bar-fill risk" style="width:70%"></div></div>
+          <span class="shap-impact risk">-0.53</span>
+        </div>
+      </div>
+      <div class="shap-feature">
+        <span class="shap-feature-name">Oldpeak</span>
+        <div class="shap-bar-wrap">
+          <div class="shap-bar-track"><div class="shap-bar-fill risk" style="width:50%"></div></div>
+          <span class="shap-impact risk">-0.38</span>
+        </div>
+      </div>
+      <div class="shap-feature">
+        <span class="shap-feature-name">ChestPainType_ATA</span>
+        <div class="shap-bar-wrap">
+          <div class="shap-bar-track"><div class="shap-bar-fill risk" style="width:35%"></div></div>
+          <span class="shap-impact risk">-0.26</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- DEMO -->
+<section id="demo">
+  <span class="section-tag">Prediction</span>
+  <h2 class="section-title">Real-time risk<br>assessment.</h2>
+  <div class="demo-section fade-up">
+    <div class="demo-grid">
+      <div class="demo-inputs">
+        <h3 style="font-family:'Playfair Display',serif; font-size:22px; color:var(--white); margin-bottom:24px;">Sample Patient Profile</h3>
+        <div class="demo-input-row">
+          <span class="demo-input-label">Age</span>
+          <span class="demo-input-value">55 years</span>
+        </div>
+        <div class="demo-input-row">
+          <span class="demo-input-label">Sex</span>
+          <span class="demo-input-value">Male</span>
+        </div>
+        <div class="demo-input-row">
+          <span class="demo-input-label">Resting BP</span>
+          <span class="demo-input-value">140 mmHg</span>
+        </div>
+        <div class="demo-input-row">
+          <span class="demo-input-label">Cholesterol</span>
+          <span class="demo-input-value">250 mg/dL</span>
+        </div>
+        <div class="demo-input-row">
+          <span class="demo-input-label">Max Heart Rate</span>
+          <span class="demo-input-value">120 bpm</span>
+        </div>
+        <div class="demo-input-row">
+          <span class="demo-input-label">Exercise Angina</span>
+          <span class="demo-input-value" style="color:var(--crimson-pale)">Yes</span>
+        </div>
+        <div class="demo-input-row">
+          <span class="demo-input-label">ST Slope</span>
+          <span class="demo-input-value" style="color:var(--crimson-pale)">Flat</span>
+        </div>
+      </div>
+      <div class="demo-result">
+        <div class="demo-risk-badge">⚠ HIGH RISK</div>
+        <span class="demo-probability">93.8%</span>
+        <span class="demo-probability-label">Probability of Heart Disease</span>
+        <p style="font-size:13px; color:var(--muted); margin-top:24px; font-family:'DM Mono',monospace; line-height:1.6;">Prediction generated in &lt;1 second<br>Model: Logistic Regression<br>Key drivers: ExerciseAngina, ST_Slope_Flat</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- NEXT STEPS -->
+<section id="next">
+  <span class="section-tag">Roadmap</span>
+  <h2 class="section-title">What's next for<br>CardioSense.</h2>
+  <div class="next-grid">
+    <div class="next-card fade-up">
+      <span class="next-num">01 — Short Term</span>
+      <div class="next-title">Address Class Imbalance</div>
+      <p class="next-desc">Apply SMOTE oversampling to the ECG dataset to improve positive-class prediction reliability and reduce the effect of the 507:21 class ratio.</p>
+    </div>
+    <div class="next-card fade-up">
+      <span class="next-num">02 — Medium Term</span>
+      <div class="next-title">Unified Ensemble Score</div>
+      <p class="next-desc">Build a meta-layer that combines predictions from all three models into a single cardiovascular risk score, weighted by each model's AUC performance.</p>
+    </div>
+    <div class="next-card fade-up">
+      <span class="next-num">03 — Data</span>
+      <div class="next-title">Indian Demographics</div>
+      <p class="next-desc">Current datasets are predominantly Western in origin. Partnering with Indian hospitals for anonymised patient data would make CardioSense significantly more accurate for Indian patients.</p>
+    </div>
+    <div class="next-card fade-up">
+      <span class="next-num">04 — Deployment</span>
+      <div class="next-title">Clinic & Gym Integration</div>
+      <p class="next-desc">Deploy as a free AI screening tool via REST API, integrated into clinic management software and fitness centre check-in systems across India.</p>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <p class="footer-quote">"If this project can prevent even one family from experiencing what mine did, it will have been worth every line of code."</p>
+  <div class="footer-links">
+    <a href="https://github.com/kapilshastriwork-maker/cardiosense" class="footer-link" target="_blank">GitHub</a>
+    <a href="#about" class="footer-link">About</a>
+    <a href="#results" class="footer-link">Results</a>
+  </div>
+  <p class="footer-copy">CardioSense — Hack4Health 2026 — Kapil Shastri</p>
+</footer>
+
+<script>
+  // Scroll animations
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('visible');
+      }
+    });
+  }, { threshold: 0.1 });
+
+  document.querySelectorAll('.fade-up').forEach(el => observer.observe(el));
+</script>
+</body>
+</html>
